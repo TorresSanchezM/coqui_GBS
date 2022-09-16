@@ -1,0 +1,112 @@
+#Command line code of the analyses presented in the article: "LINKING PATHOGEN-MICROBIOME-HOST INTERACTIONS TO EXPLAIN AMPHIBIAN POPULATION DYNAMICS" María Torres-Sánchez and Ana V. Longo.
+#Corresponding author: María Torres-Sánchez (torressanchez.maria@gmail.com)
+
+#################                               GENOMIC DIVERSITY                              #################
+################################################################################################################
+
+#Input and output
+vcf
+tajimaD
+het
+site-pi
+vcfstats
+plink
+genotyping_value
+missing
+maf
+hardy_weinberg
+infection_data
+
+module load vcftools/0.1.16
+module load rtg
+module load plink/1.90b6.15
+module load R/4.1.2
+
+vcftools --vcf $vcf --plink --out $plink
+vcftools --vcf $vcf --het --out $het
+vcftools --vcf $vcf --TajimaD 1 --out $tajimaD
+vcftools --vcf $vcf --site-pi --out $site_pi
+rtg vcfstats $vcf > $vcfstats
+plink --map $plink --ped $plink --out $plink
+plink --bfile $plink --geno $genotyping_value --make-bed --out $plink
+plink --bfile $plink --missing --out $missing 
+plink --bfile $plink --freq --out $maf 
+plink --bfile $plink --hardy --out $hardy_weinberg
+
+wilcox.test(tajimaD ~ infection_subset_cat, data=infection_data)
+
+
+#################       POPULATION STRUCTURE, MOLECULAR VARIANZE, AND DEMOGRAPHIC ANALYSES      #################
+################################################################################################################
+
+#Input and output
+plink
+relatedness2
+mds
+k
+dist_matrix
+infection_data
+pop
+tpl
+est
+par
+
+module load vcftools/0.1.16
+module load admixture/1.3.0
+module load plink/1.90b6.15
+module load R/4.1.2
+module load fastsimcoal2/2.7.0.2
+conda activate easySFS
+
+vcftools --vcf $vcf --relatedness2 --out $relatedness2
+admixture --cv $plink $K
+plink --bfile $plink --cluster --mds-plot 10 eigvals --out $mds
+plink --bfile $plink --distance square 1-ibs --out $dist_matrix
+
+library(pegas)
+amova(dist_matrix ~ infection_cat, data=infection_data, nperm = 10000)
+
+easySFS.py -a -i $vcf -p $pop --preview
+easySFS.py -a -i $vcf -p $pop --proj 154
+fsc26 -t $tpl -e $est -m -M -n 1000000 -L 100 -T -q
+fsc26 -i $par -m -n 1000000 -L 100 -q
+fsc26 -i $par -m -s0 -j -n 100000 -q –b 100
+
+
+
+#################                STATISTICAL ANALYSES OF SYMBIOTIC INTERACTIONS	               #################
+################################################################################################################
+
+#Input and output
+dataset
+frogID
+
+module load R/4.1.2
+library("piecewiseSEM")
+
+pca_microbiome <- prcomp(dataset[,7:10], scale=T)
+lm(Microbiome_diversity_index ~ Sampling_day, data=subset(dataset, ID == frogID))
+lm(Bd_load ~ Sampling_day, data=subset(dataset, ID == frogID))
+lm(Acitenobacter_rhizosphaerae_counts ~ Sampling_day, data=subset(dataset, ID == frogID))
+lm(dataset$weight ~ dataset$SVL)
+
+shapiro.test(dataset$Body_condition)
+shapiro.test(dataset$Acitenobacter_rhizosphaerae_counts)
+shapiro.test(dataset$Microbiome_diversity_index)
+
+psem_initial <- psem(
+	glm(Microbiome_diversity_index ~ Het_Hom_ratio + Season, family="gaussian", data=dataset),
+	glm.nb(Acitenobacter_rhizosphaerae_counts ~ Het_Hom_ratio + Microbiome_diversity_index + Body_condition + Bd_status, data=dataset),
+	glm(Body_condition ~ Season + Acitenobacter_rhizosphaerae_counts + Bd_status, family="gaussian", data=dataset),
+	glm(Bd_status ~ Het_Hom_ratio + Body_condition + Acitenobacter_rhizosphaerae_counts, data=dataset, family="binomial")	
+ )
+summary(psem_initial, .progressBar = T)
+
+psem_during <- psem(
+	glm(Change_microbiome_diversity ~ Het_Hom_ratio + Season + Treatment, family="gaussian", data=dataset),
+	glm(Change_Acitenobacter_rhizosphaerae_log ~ Het_Hom_ratio + Change_microbiome_diversity + Body_condition + Change_Bd_log, data=dataset, family="Gamma"),
+	glm(Body_condition ~ Season + Change_Acitenobacter_rhizosphaerae_log + Change_Bd_log, family="gaussian", data=dataset),
+	glm(Change_Bd_log ~ Het_Hom_ratio + Treatment + Body_condition + Change_Acitenobacter_rhizosphaerae_log, data=dataset, family="Gamma"),
+	glm(Recovery_numeric ~ Change_Bd_log, data=dataset, family="binomial")	
+ )
+summary(psem_during, .progressBar = T)
