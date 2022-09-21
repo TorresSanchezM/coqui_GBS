@@ -16,6 +16,7 @@ The txt file (Torres-Sanchez&Longo_species_interactions_in_amphibian_skin_FileS3
 ### Citation
 
 When using the data or the code please cite the following paper:  
-Torres-Sánchez & Longo. (2022). Linking pathogen-microbiome-host interactions to explain amphibian population dynamics.
+Torres-Sánchez & Longo. (2022). Linking pathogen-microbiome-host interactions to explain amphibian population dynamics.  https://onlinelibrary.wiley.com/doi/10.1111/mec.16701
+
 
 
